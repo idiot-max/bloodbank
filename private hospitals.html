@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nearby Private Hospitals</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        #map {
+            height: 500px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+    </style>
+</head>
+<body>
+    <h1>Find Nearby Private Hospitals</h1>
+    <div id="map"></div>
+    <h2>List of Nearby Private Hospitals</h2>
+    <table id="hospitalTable">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Google Maps Link</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Dynamic hospital data will be inserted here -->
+        </tbody>
+    </table>
+    <script>
+        // Initialize the map
+        const map = L.map('map').setView([51.505, -0.09], 13); // Default coordinates (London)
+
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Get user's location
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition((position) => {
+                const userCoords = [position.coords.latitude, position.coords.longitude];
+                map.setView(userCoords, 14);
+
+                // Add marker for user's location
+                L.marker(userCoords).addTo(map).bindPopup("You are here").openPopup();
+
+                // Fetch nearby hospitals using Overpass API
+                fetchNearbyHospitals(userCoords);
+            }, () => {
+                alert("Unable to retrieve your location.");
+            });
+        } else {
+            alert("Geolocation is not supported by your browser.");
+        }
+
+        // Function to fetch hospitals from Overpass API
+        function fetchNearbyHospitals(coords) {
+            const [lat, lon] = coords;
+            const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json];node[amenity=hospital](around:5000,${lat},${lon});out;`;
+
+            fetch(overpassUrl)
+                .then(response => response.json())
+                .then(data => {
+                    const tableBody = document.querySelector("#hospitalTable tbody");
+                    tableBody.innerHTML = ""; // Clear any existing rows
+
+                    data.elements.forEach(hospital => {
+                        if (hospital.lat && hospital.lon) {
+                            // Add marker for each hospital
+                            L.marker([hospital.lat, hospital.lon]).addTo(map)
+                                .bindPopup(hospital.tags.name || "Private Hospital");
+
+                            // Create Google Maps link
+                            const googleMapsLink = `https://www.google.com/maps?q=${hospital.lat},${hospital.lon}`;
+
+                            // Add row to the table
+                            const row = document.createElement("tr");
+                            const nameCell = document.createElement("td");
+                            const mapsCell = document.createElement("td");
+
+                            nameCell.textContent = hospital.tags.name || "Unnamed Hospital";
+
+                            // Create a clickable Google Maps link
+                            const link = document.createElement("a");
+                            link.href = googleMapsLink;
+                            link.target = "_blank";
+                            link.textContent = "View on Google Maps";
+                            
+                            mapsCell.appendChild(link);
+                            row.appendChild(nameCell);
+                            row.appendChild(mapsCell);
+
+                            tableBody.appendChild(row);
+                        }
+                    });
+                })
+                .catch(err => {
+                    console.error("Error fetching hospital data:", err);
+                });
+        }
+    </script>
+</body>
+</html>
